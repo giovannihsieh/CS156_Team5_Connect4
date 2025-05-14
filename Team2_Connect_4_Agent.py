@@ -62,27 +62,22 @@ def evaluate_window(window, piece):
     Giovanni Hsieh: 100% implemented"""
     score = 0
     # Switch scoring based on turn
-    opp_piece = PLAYER_PIECE \
-    if piece == BOT_PIECE \
-        else BOT_PIECE
+    opp_piece = PLAYER_PIECE
+    if piece == PLAYER_PIECE:
+        opp_piece = BOT_PIECE
 
-    # Prioritise a winning move
+    # Prioritize a winning move
     if window.count(piece) == 4:
-        score += 1000
+        score += 100
     # Make connecting 3 second priority
     elif window.count(piece) == 3 and window.count(EMPTY) == 1:
-        score += 50
+        score += 5
     # Make connecting 2 third priority
     elif window.count(piece) == 2 and window.count(EMPTY) == 2:
-        score += 10
-
-    # Prioritise blocking an opponent's winning move (but not over bot winning)
-    if window.count(opp_piece) == 4:
-        score -= 1000
-    elif window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
-        score -= 80
-    elif window.count(opp_piece) == 2 and window.count(EMPTY) == 2:
-        score -= 5
+        score += 2
+    # Prioritize blocking an opponent's winning move (but not over bot winning)
+    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+        score -= 4
 
     return score
 
@@ -92,38 +87,39 @@ def score_position(board, piece):
     called at leaf nodes of minimax algorithm to estimate board values
     Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     score = 0
-    row_count = len(board)
-    col_count = len(board[0])
+    ROW_COUNT = len(board)
+    COLUMN_COUNT = len(board[0])
+    WINDOW_LENGTH = 4
 
-    # Center column preference
-    center_col = col_count // 2
-    center_array = [board[r][center_col] for r in range(row_count)]
+    # Score center column
+    center_col = COLUMN_COUNT // 2
+    center_array = [board[r][center_col] for r in range(ROW_COUNT)]
     center_count = center_array.count(piece)
     score += center_count * 3
 
-    # Horizontal score
-    for r in range(row_count):
-        row_array = board[r]
-        for c in range(col_count - 3):
+    # Score horizontal positions
+    for r in range(ROW_COUNT):
+        row_array = [board[r][c] for c in range(COLUMN_COUNT)]
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
             window = row_array[c:c + WINDOW_LENGTH]
             score += evaluate_window(window, piece)
 
-    # Vertical score
-    for c in range(col_count):
-        col_array = [board[r][c] for r in range(row_count)]
-        for r in range(row_count - 3):
+    # Score vertical positions
+    for c in range(COLUMN_COUNT):
+        col_array = [board[r][c] for r in range(ROW_COUNT)]
+        for r in range(ROW_COUNT - WINDOW_LENGTH + 1):
             window = col_array[r:r + WINDOW_LENGTH]
             score += evaluate_window(window, piece)
 
-    # Positive diagonals
-    for r in range(row_count - 3):
-        for c in range(col_count - 3):
+    # Score positive diagonals (bottom-left to top-right)
+    for r in range(ROW_COUNT - WINDOW_LENGTH + 1):
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
             window = [board[r + i][c + i] for i in range(WINDOW_LENGTH)]
             score += evaluate_window(window, piece)
 
-    # Negative diagonals
-    for r in range(3, row_count):
-        for c in range(col_count - 3):
+    # Score negative diagonals (top-left to bottom-right)
+    for r in range(WINDOW_LENGTH - 1, ROW_COUNT):
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
             window = [board[r - i][c + i] for i in range(WINDOW_LENGTH)]
             score += evaluate_window(window, piece)
 
@@ -188,35 +184,35 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
             return (None, score_position(board, BOT_PIECE))
 
     if maximizingPlayer:
-        value = -float('inf')
+        score = -float('inf')
         best_col = random.choice(valid_locations)
         for col in valid_locations:
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, BOT_PIECE)
             _, new_score = minimax(b_copy, depth - 1, alpha, beta, False, start_time, time_limit)
-            if new_score > value:
-                value = new_score
+            if new_score > score:
+                score = new_score
                 best_col = col
-            alpha = max(alpha, value)
+            alpha = max(alpha, score)
             if alpha >= beta:
                 break
-        return best_col, value
+        return best_col, score
     else:
-        value = float('inf')
+        score = float('inf')
         best_col = random.choice(valid_locations)
         for col in valid_locations:
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, PLAYER_PIECE)
             _, new_score = minimax(b_copy, depth - 1, alpha, beta, True, start_time, time_limit)
-            if new_score < value:
-                value = new_score
+            if new_score < score:
+                score = new_score
                 best_col = col
-            beta = min(beta, value)
+            beta = min(beta, score)
             if alpha >= beta:
                 break
-        return best_col, value
+        return best_col, score
 
 # FUNCTIONS REQUIRED BY THE connect_4_main.py MODULE
 def init_agent(player_symbol, board_num_rows, board_num_cols, board):
@@ -246,24 +242,42 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
    time_limit = 15  # seconds; leave buffer for return
-   start_time = time.time()
+   start_time = time.time()  # Start the timer
    best_col = random.choice(get_valid_locations(board))  # fallback
    depth = 1
 
+   print(f"[DEBUG] Starting iterative deepening for player '{BOT_PIECE}'")
+
    while True:
-       if time.time() - start_time > time_limit:
+       current_time = time.time()
+       if current_time - start_time > time_limit:
+           print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
            break
 
        try:
-           col, _ = minimax(board, depth, -float('inf'), float('inf'), True, start_time, time_limit)
+           col, score = minimax(board, depth, -float('inf'), float('inf'), True, start_time, time_limit)
            if col is not None:
                best_col = col
+               print(f"[DEBUG] Depth {depth}: Best column so far is {col + 1} (score = {score})")
+
+               # Early exit if winning move is found
+               if score == 9999999:
+                   print(f"[DEBUG] Winning move found at column {col + 1} with score {score}. Ending search early.")
+                   break
        except TimeoutError:
+           print(f"[DEBUG] TimeoutError caught at depth {depth}")
            break
 
        depth += 1
 
+   end_time = time.time()  # End the timer
+   elapsed_time = end_time - start_time  # Calculate the time taken
+
+   print(f"[DEBUG] Final move selected: column {best_col + 1}")
+   print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
+
    return best_col + 1  # convert to 1-based indexing
+
 
 def connect_4_result(board, winner, looser):
     """The Connect 4 manager calls this function when the game is over.
