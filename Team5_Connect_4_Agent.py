@@ -3,6 +3,7 @@
 # IMPORTS
 import random
 import copy
+import time
 
 # DEFINITIONS
 # board = [[' ' for _ in range(cols)] for _ in range(rows)]
@@ -51,6 +52,11 @@ def copy_board(board):
     Giovanni Hsieh: 100% implemented to be used in minimax function without modifying original board state"""
     return copy.deepcopy(board)
 
+def order_valid_locations(valid_locations, col_count):
+    """REPRESENTATION: sort moves by how close to center they are since center is usually the best move"""
+    center = col_count // 2
+    return sorted(valid_locations, key=lambda x: abs(center - x))
+
 def evaluate_window(window, piece):
     """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
     Giovanni Hsieh: 100% implemented"""
@@ -61,19 +67,22 @@ def evaluate_window(window, piece):
         else BOT_PIECE
 
     # Prioritise a winning move
-    # Minimax makes this less important
     if window.count(piece) == 4:
-        score += 100
+        score += 1000
     # Make connecting 3 second priority
     elif window.count(piece) == 3 and window.count(EMPTY) == 1:
-        score += 5
+        score += 50
     # Make connecting 2 third priority
     elif window.count(piece) == 2 and window.count(EMPTY) == 2:
-        score += 2
+        score += 10
+
     # Prioritise blocking an opponent's winning move (but not over bot winning)
-    # Minimax makes this less important
-    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
-        score -= 4
+    if window.count(opp_piece) == 4:
+        score -= 1000
+    elif window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+        score -= 80
+    elif window.count(opp_piece) == 2 and window.count(EMPTY) == 2:
+        score -= 5
 
     return score
 
@@ -161,7 +170,7 @@ def is_terminal_node(board):
 def minimax(board, depth, alpha, beta, maximizingPlayer):
     """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
     Giovanni Hsieh: 100% edited open source code to work"""
-    valid_locations = get_valid_locations(board)
+    valid_locations = order_valid_locations(get_valid_locations(board), len(board[0]))
     is_terminal = is_terminal_node(board)
 
     if depth == 0 or is_terminal:
@@ -227,13 +236,33 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    """ Decide your move, i.e., which column to drop a disk.
    Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
+   : Implemented checking for winning or losing move before running minimax to save time
    """
 
    global BOT_PIECE, PLAYER_PIECE
    BOT_PIECE = my_game_symbol
    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
-   col, _ = minimax(copy_board(board), 5, -float('inf'), float('inf'), True)
+   valid_locations = get_valid_locations(board)
+
+   # Check for winning move before running minimax to save time
+   for col in valid_locations:
+       row = get_next_open_row(board, col)
+       temp_board = copy_board(board)
+       drop_piece(temp_board, row, col, BOT_PIECE)
+       if winning_move(temp_board, BOT_PIECE):
+           return col + 1
+
+   # Check for opponent's winning move to block before running minimax to save time
+   for col in valid_locations:
+       row = get_next_open_row(board, col)
+       temp_board = copy_board(board)
+       drop_piece(temp_board, row, col, PLAYER_PIECE)
+       if winning_move(temp_board, PLAYER_PIECE):
+           return col + 1
+
+   # If neither above sections happen, run minimax algorithm
+   col, _ = minimax(copy_board(board), 4, -float('inf'), float('inf'), True)
    return col + 1 if col is not None else random.randint(1, game_cols)
 
 def connect_4_result(board, winner, looser):
