@@ -25,39 +25,63 @@ def print_board(board):
     return
 
 def get_valid_locations(board):
+    """ REPRESENTATION: Get all locations in the game board that are not empty (can be filled).
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     return [col for col in range(len(board[0])) if board[0][col] == EMPTY]
 
 def is_valid_location(board, col):
+    """Check if there is a valid location in a specific column.
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     return board[0][col] == EMPTY
 
 def get_next_open_row(board, col):
+    """REPRESENTATION: check which row the game piece will go to when placed in a column.
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     for r in reversed(range(len(board))):
         if board[r][col] == EMPTY:
             return r
 
 def drop_piece(board, row, col, piece):
+    """REPRESENTATION: drop a game piece into a row/column. used for minimax search algorithm
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     board[row][col] = piece
 
 def copy_board(board):
+    """REPRESENTATION: copy board state for modification during minimax algorithm
+    Giovanni Hsieh: 100% implemented to be used in minimax function without modifying original board state"""
     return copy.deepcopy(board)
 
 def evaluate_window(window, piece):
+    """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
+    Giovanni Hsieh: 100% implemented"""
     score = 0
-    opp_piece = PLAYER_PIECE if piece == BOT_PIECE else BOT_PIECE
+    # Switch scoring based on turn
+    opp_piece = PLAYER_PIECE \
+    if piece == BOT_PIECE \
+        else BOT_PIECE
 
+    # Prioritise a winning move
+    # Minimax makes this less important
     if window.count(piece) == 4:
         score += 100
+    # Make connecting 3 second priority
     elif window.count(piece) == 3 and window.count(EMPTY) == 1:
         score += 5
+    # Make connecting 2 third priority
     elif window.count(piece) == 2 and window.count(EMPTY) == 2:
         score += 2
-
+    # Prioritise blocking an opponent's winning move (but not over bot winning)
+    # Minimax makes this less important
     if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
         score -= 4
 
     return score
 
 def score_position(board, piece):
+    """ REASONING: give a score of the whole board based on evaluate_window.
+    center column is favored, looks at horizontal/vertical/diagonal possibilities
+    called at leaf nodes of minimax algorithm to estimate board values
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     score = 0
     row_count = len(board)
     col_count = len(board[0])
@@ -97,24 +121,30 @@ def score_position(board, piece):
     return score
 
 def winning_move(board, piece):
+    """REPRESENTATION: check if there is a winning state
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
     row_count = len(board)
     col_count = len(board[0])
 
+    # Check valid horizontal locations for win
     for r in range(row_count):
         for c in range(col_count - 3):
             if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
                 return True
 
+    # Check valid vertical locations for win
     for c in range(col_count):
         for r in range(row_count - 3):
             if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
                 return True
 
+    # Check valid positive diagonal locations for win
     for r in range(row_count - 3):
         for c in range(col_count - 3):
             if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
                 return True
 
+    # Check valid negative diagonal locations for win
     for r in range(3, row_count):
         for c in range(col_count - 3):
             if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
@@ -124,10 +154,13 @@ def winning_move(board, piece):
 
 
 def is_terminal_node(board):
+    """REPRESENTATION:  check if current state is win/draw/loss terminal state"""
     return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
 
 
 def minimax(board, depth, alpha, beta, maximizingPlayer):
+    """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
+    Giovanni Hsieh: 100% edited open source code to work"""
     valid_locations = get_valid_locations(board)
     is_terminal = is_terminal_node(board)
 
@@ -192,7 +225,9 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
    return True
 
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
-   """ Decide your move, i.e., which column to drop a disk. """
+   """ Decide your move, i.e., which column to drop a disk.
+   Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
+   """
 
    global BOT_PIECE, PLAYER_PIECE
    BOT_PIECE = my_game_symbol
