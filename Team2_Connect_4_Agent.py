@@ -239,7 +239,7 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    BOT_PIECE = my_game_symbol
    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
-   time_limit = 5  # seconds; leave buffer for return
+   time_limit = 1  # seconds; leave buffer for return
    start_time = time.time()  # Start the timer
    best_col = random.choice(get_valid_locations(board))  # fallback
    depth = 1
@@ -279,11 +279,12 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
 
    end_time = time.time()  # End the timer
    elapsed_time = end_time - start_time  # Calculate the time taken
-
+   """
    print(f"Turn: {BOT_PIECE}")
    print(f"[DEBUG] Final move selected: column {best_col + 1}")
    print(f"[DEBUG] Depth: {depth}")
    print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
+   """
 
    return best_col + 1  # convert to 1-based indexing
 

@@ -23,41 +23,81 @@ def print_board(board):
     print(' ' + ' '.join(str(i+1) for i in range(len(board[0]))))
     return
 
-def get_valid_locations(board):
-    """ REPRESENTATION: Get all locations in the game board that are not empty (can be filled).
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
-    return [col for col in range(len(board[0])) if board[0][col] == ' ']
+# REPRESENTATION
 
-def is_valid_location(board, col):
-    """Check if there is a valid location in a specific column.
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
-    return board[0][col] == ' '
+def get_valid_locations(board):
+    """REPRESENTATION: Get all locations in the game board that are not empty (can be filled).
+    Gabriel Danekari: 100% implemented to work with 2d list implementation of board"""
+    return [col for col in range(len(board[0])) if board[0][col] == ' ']
 
 def get_next_open_row(board, col):
     """REPRESENTATION: check which row the game piece will go to when placed in a column.
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    Gabriel Danekari: 100% implemented to work with 2d list implementation of board"""
     for r in reversed(range(len(board))):
         if board[r][col] == ' ':
             return r
 
 def drop_piece(board, row, col, piece):
     """REPRESENTATION: drop a game piece into a row/column. used for minimax search algorithm
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    Acyuta Raman: 100% implemented to work with 2d list implementation of board"""
     board[row][col] = piece
 
 def copy_board(board):
     """REPRESENTATION: copy board state for modification during minimax algorithm
-    Giovanni Hsieh: 100% implemented to be used in minimax function without modifying original board state"""
+    Acyuta Raman: 100% implemented to be used in minimax function without modifying original board state"""
     return [row[:] for row in board]
 
 def order_valid_locations(valid_locations, col_count):
-    """REPRESENTATION: sort moves by how close to center they are since center is usually the best move"""
+    """REPRESENTATION: sort moves by how close to center they are since center is usually the best move
+    Giovanni Hsieh: 100% implemented to make program more robust."""
     center = col_count // 2
     return sorted(valid_locations, key=lambda x: abs(center - x))
 
+def winning_move(board, piece):
+    """REPRESENTATION: check if there is a winning state
+    Gabriel Danekari: 25% implemented horizontal and vertical locations
+    Acyuta Raman: 25% implemented diagonal locations
+    Giovanni Hsieh: 50% made sure code worked with 2d list board implementation """
+    rows = len(board)
+    cols = len(board[0])
+
+    # Check valid horizontal locations for win
+    for r in range(rows):
+        for c in range(cols - 3):
+            if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
+                return True
+
+    # Check valid vertical locations for win
+    for c in range(cols):
+        for r in range(rows - 3):
+            if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
+                return True
+
+    # Check valid positive diagonal locations for win
+    for r in range(rows - 3):
+        for c in range(cols - 3):
+            if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
+                return True
+
+    # Check valid negative diagonal locations for win
+    for r in range(3, rows):
+        for c in range(cols - 3):
+            if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
+                return True
+
+    return False
+
+def is_terminal_node(board):
+    """REPRESENTATION:  check if current state is win/draw/loss terminal state
+    Giovanni Hsieh: 100% implemented checking if there is a winning move on board"""
+    return winning_move(board, my_game_symbol) or winning_move(board, opponent_game_symbol) or len(get_valid_locations(board)) == 0
+
+# REASONING
+
 def evaluate_window(window, piece):
     """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
-    Giovanni Hsieh: 100% implemented"""
+    Kenmin Ho : 50% implemented to weight score
+    Giovanni Hsieh: 50% implemented assigning symbols to pieces"""
     score = 0
     # Switch scoring based on turn
     opp_piece = my_game_symbol
@@ -83,7 +123,9 @@ def score_position(board, piece):
     """ REASONING: give a score of the whole board based on evaluate_window.
     center column is favored, looks at horizontal/vertical/diagonal possibilities
     called at leaf nodes of minimax algorithm to estimate board values
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    Gabriel Danekari: 33% implemented scoring horizontal and vertical positions
+    Acyuta Raman: 33% implemented scoring diagonal positions
+    Kenmin Ho: 33% implemented center column scoring"""
     score = 0
     rows = len(board)
     cols = len(board[0])
@@ -122,47 +164,13 @@ def score_position(board, piece):
 
     return score
 
-def winning_move(board, piece):
-    """REPRESENTATION: check if there is a winning state
-    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
-    rows = len(board)
-    cols = len(board[0])
-
-    # Check valid horizontal locations for win
-    for r in range(rows):
-        for c in range(cols - 3):
-            if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
-                return True
-
-    # Check valid vertical locations for win
-    for c in range(cols):
-        for r in range(rows - 3):
-            if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
-                return True
-
-    # Check valid positive diagonal locations for win
-    for r in range(rows - 3):
-        for c in range(cols - 3):
-            if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
-                return True
-
-    # Check valid negative diagonal locations for win
-    for r in range(3, rows):
-        for c in range(cols - 3):
-            if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
-                return True
-
-    return False
-
-
-def is_terminal_node(board):
-    """REPRESENTATION:  check if current state is win/draw/loss terminal state"""
-    return winning_move(board, my_game_symbol) or winning_move(board, opponent_game_symbol) or len(get_valid_locations(board)) == 0
-
+# SEARCH
 
 def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit):
-    """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
-    Giovanni Hsieh: 100% edited open source code to work"""
+    """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4. Has iterative deepening
+    to keep track of the best move at each depth within a time limit to ensure the best move is played.
+    Giovanni Hsieh: 100% edited open source code to work,
+    added iterative deepening to keep track of best move at each depth with a time limit """
     if time.time() - start_time > time_limit:
         raise TimeoutError()
 
@@ -232,9 +240,11 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
 def what_is_your_move(board, game_rows, game_cols, symbol):
    """ Decide your move, i.e., which column to drop a disk.
    Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
-   : Implemented checking for winning or losing move before running minimax to save time
+   set time limit to 15 seconds per move, and started depth at 4.
+   implemented picking a winning move immediately instead of continuing the minimax search
+   chooses previous best choice if detects a loss.
+   has a debugging portion.
    """
-
    global my_game_symbol, opponent_game_symbol
    opponent_game_symbol = symbol
    my_game_symbol = 'O' if symbol == 'X' else 'X'
@@ -248,7 +258,7 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
    while True:
        current_time = time.time()
        if current_time - start_time > time_limit:
-           print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
+           #print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
            break
 
        try:
@@ -258,14 +268,13 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
 
                # If a winning move is found, pick it immediately
                if score == 9999999:
-                   print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
+                   #print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
                    best_col = col
                    break
 
                # Stop if we detect that this depth leads to a guaranteed loss
                if score == -9999999:
-                   print(
-                       f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {best_col + 1}.")
+                   #print(f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {best_col + 1}.")
                    break
 
                if score > best_score:
@@ -280,10 +289,12 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
    end_time = time.time()  # End the timer
    elapsed_time = end_time - start_time  # Calculate the time taken
 
+   """
    print(f"Turn: {opponent_game_symbol}")
    print(f"[DEBUG] Final move selected: column {best_col + 1}")
    print(f"[DEBUG] Depth: {depth}")
    print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
+   """
 
    return best_col + 1  # convert to 1-based indexing
 
