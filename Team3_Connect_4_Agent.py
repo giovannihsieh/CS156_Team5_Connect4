@@ -1,234 +1,220 @@
-#! /usr/bin/Team3_Connect_4_Agent.py
-# python connect_4_main.pyc Team1 Team5
-# IMPORTS
+# ! /usr/bin/Team3_Connect_4_Agent.py
+# python connect_4_main.pyc Team2 Team5
+
 import random
+import math
 import copy
+import hashlib
+import time
 
-# DEFINITIONS
-# board = [[' ' for _ in range(cols)] for _ in range(rows)]
+# -------------------
+# TRANSPOSITION TABLE
+# -------------------
 
-#Constants
-EMPTY = ' '
-PLAYER_PIECE = 'O'  # opponent
-BOT_PIECE = 'X'     # your symbol
-WINDOW_LENGTH = 4
-TEAM_NAME = "Team3"
+class TranspositionTable:
+    def __init__(self):
+        self.table = {}
 
+    def _hash_board(self, board, my_symbol, opponent_symbol):
+        board_string = ''.join(''.join(row) for row in board)
+        return hashlib.md5((board_string + my_symbol + opponent_symbol).encode()).hexdigest()
+
+    def get(self, board, my_symbol, opponent_symbol):
+        key = self._hash_board(board, my_symbol, opponent_symbol)
+        return self.table.get(key)
+
+    def put(self, board, my_symbol, opponent_symbol, value):
+        key = self._hash_board(board, my_symbol, opponent_symbol)
+        self.table[key] = value
+
+transposition_table = TranspositionTable()
+
+# -------------------
 # HELPER FUNCTIONS
-# Print the Board
+# -------------------
+
 def print_board(board):
-    """ Prints the connect 4 game board."""
     for row in board:
         print('|' + '|'.join(row) + '|')
     print("-" * (len(board[0]) * 2 + 1))
-    print(' ' + ' '.join(str(i+1) for i in range(len(board[0]))))
-    return
+    print(' ' + ' '.join(str(i + 1) for i in range(len(board[0]))))
 
-def get_valid_locations(board):
-    return [col for col in range(len(board[0])) if board[0][col] == EMPTY]
+def get_valid_moves(board):
+    return [c for c in range(len(board[0])) if board[0][c] == ' ']
 
-def is_valid_location(board, col):
-    return board[0][col] == EMPTY
+def make_move(board, col, symbol):
+    new_board = copy.deepcopy(board)
+    for row in reversed(range(len(new_board))):
+        if new_board[row][col] == ' ':
+            new_board[row][col] = symbol
+            return new_board
+    return None
 
-def get_next_open_row(board, col):
-    for r in reversed(range(len(board))):
-        if board[r][col] == EMPTY:
-            return r
-
-def drop_piece(board, row, col, piece):
-    board[row][col] = piece
-
-def copy_board(board):
-    return copy.deepcopy(board)
-
-def evaluate_window(window, piece):
-    score = 0
-    opp_piece = PLAYER_PIECE if piece == BOT_PIECE else BOT_PIECE
-
-    if window.count(piece) == 4:
-        score += 100
-    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
-        score += 5
-    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
-        score += 2
-
-    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
-        score -= 4
-
-    return score
-
-def score_position(board, piece):
-    score = 0
-    row_count = len(board)
-    col_count = len(board[0])
-
-    # Center column preference
-    center_col = col_count // 2
-    center_array = [board[r][center_col] for r in range(row_count)]
-    center_count = center_array.count(piece)
-    score += center_count * 3
-
-    # Horizontal score
-    for r in range(row_count):
-        row_array = board[r]
-        for c in range(col_count - 3):
-            window = row_array[c:c + WINDOW_LENGTH]
-            score += evaluate_window(window, piece)
-
-    # Vertical score
-    for c in range(col_count):
-        col_array = [board[r][c] for r in range(row_count)]
-        for r in range(row_count - 3):
-            window = col_array[r:r + WINDOW_LENGTH]
-            score += evaluate_window(window, piece)
-
-    # Positive diagonals
-    for r in range(row_count - 3):
-        for c in range(col_count - 3):
-            window = [board[r + i][c + i] for i in range(WINDOW_LENGTH)]
-            score += evaluate_window(window, piece)
-
-    # Negative diagonals
-    for r in range(3, row_count):
-        for c in range(col_count - 3):
-            window = [board[r - i][c + i] for i in range(WINDOW_LENGTH)]
-            score += evaluate_window(window, piece)
-
-    return score
-
-def winning_move(board, piece):
-    row_count = len(board)
-    col_count = len(board[0])
-
-    for r in range(row_count):
-        for c in range(col_count - 3):
-            if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
+def check_winner(board, symbol):
+    rows, cols = len(board), len(board[0])
+    for r in range(rows):
+        for c in range(cols - 3):
+            if all(board[r][c + i] == symbol for i in range(4)):
                 return True
-
-    for c in range(col_count):
-        for r in range(row_count - 3):
-            if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
+    for r in range(rows - 3):
+        for c in range(cols):
+            if all(board[r + i][c] == symbol for i in range(4)):
                 return True
-
-    for r in range(row_count - 3):
-        for c in range(col_count - 3):
-            if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
+    for r in range(3, rows):
+        for c in range(cols - 3):
+            if all(board[r - i][c + i] == symbol for i in range(4)):
                 return True
-
-    for r in range(3, row_count):
-        for c in range(col_count - 3):
-            if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
+    for r in range(rows - 3):
+        for c in range(cols - 3):
+            if all(board[r + i][c + i] == symbol for i in range(4)):
                 return True
-
     return False
 
+def is_full(board):
+    return all(cell != ' ' for row in board for cell in row)
 
-def is_terminal_node(board):
-    return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
+
+def evaluate_board(board, my_symbol, opponent_symbol):
+    """Evaluate the board and return a score."""
+    score = 0
+
+    # Check for winning moves
+    if check_winner(board, my_symbol):
+        return 100000  # Win score for the agent
+    elif check_winner(board, opponent_symbol):
+        return -100000  # Loss score for the agent
+
+    # Positional scoring: Center columns are more valuable
+    for r in range(len(board)):
+        for c in range(len(board[0])):
+            if board[r][c] == my_symbol:
+                score += 2  # Add value for own pieces
+                score += (len(board[0]) // 2 - abs(c - len(board[0]) // 2)) * 2  # Center is better
+            elif board[r][c] == opponent_symbol:
+                score -= 2  # Subtract value for opponent's pieces
+                score -= (len(board[0]) // 2 - abs(c - len(board[0]) // 2)) * 2  # Center is worse
+
+    # Evaluate the number of 2-in-a-row and 3-in-a-row for both the agent and the opponent
+    for r in range(len(board)):
+        for c in range(len(board[0]) - 3):
+            window = [board[r][c + i] for i in range(4)]
+            score += evaluate_window(window, my_symbol, opponent_symbol)
+
+    for r in range(len(board) - 3):
+        for c in range(len(board[0])):
+            window = [board[r + i][c] for i in range(4)]
+            score += evaluate_window(window, my_symbol, opponent_symbol)
+
+    for r in range(len(board) - 3):
+        for c in range(len(board[0]) - 3):
+            window = [board[r + i][c + i] for i in range(4)]
+            score += evaluate_window(window, my_symbol, opponent_symbol)
+
+    for r in range(3, len(board)):
+        for c in range(len(board[0]) - 3):
+            window = [board[r - i][c + i] for i in range(4)]
+            score += evaluate_window(window, my_symbol, opponent_symbol)
+
+    return score
 
 
-def minimax(board, depth, alpha, beta, maximizingPlayer):
-    valid_locations = get_valid_locations(board)
-    is_terminal = is_terminal_node(board)
+def evaluate_window(window, my_symbol, opponent_symbol):
+    """Evaluates a 4-cell window and returns a score based on the contents."""
+    score = 0
+    my_count = window.count(my_symbol)
+    opponent_count = window.count(opponent_symbol)
+
+    if my_count == 4:
+        score += 100  # Winning line
+    elif my_count == 3 and window.count(' ') == 1:
+        score += 10  # Potential to make a 4-in-a-row
+    elif my_count == 2 and window.count(' ') == 2:
+        score += 5  # Potential for future moves
+
+    if opponent_count == 3 and window.count(' ') == 1:
+        score -= 10  # Block opponent from winning
+    elif opponent_count == 2 and window.count(' ') == 2:
+        score -= 5  # Prevent opponent from setting up a winning move
+
+    return score
+
+def negamax(board, depth, alpha, beta, maximizing, my_symbol, opponent_symbol):
+    cached = transposition_table.get(board, my_symbol, opponent_symbol)
+    if cached is not None:
+        return cached, None
+
+    valid_moves = get_valid_moves(board)
+    is_terminal = check_winner(board, my_symbol) or check_winner(board, opponent_symbol) or len(valid_moves) == 0
 
     if depth == 0 or is_terminal:
-        if is_terminal:
-            if winning_move(board, BOT_PIECE):
-                return (None, 9999999)
-            elif winning_move(board, PLAYER_PIECE):
-                return (None, -9999999)
-            else:
-                return (None, 0)
-        else:
-            return (None, score_position(board, BOT_PIECE))
+        score = evaluate_board(board, my_symbol, opponent_symbol)
+        transposition_table.put(board, my_symbol, opponent_symbol, score)
+        return score, None
 
-    if maximizingPlayer:
-        value = -float('inf')
-        best_col = random.choice(valid_locations)
-        for col in valid_locations:
-            row = get_next_open_row(board, col)
-            b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, BOT_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False)
-            if new_score > value:
-                value = new_score
-                best_col = col
-            alpha = max(alpha, value)
-            if alpha >= beta:
-                break
-        return best_col, value
+    best_score = -math.inf
+    best_move = random.choice(valid_moves)
 
-    else:
-        value = float('inf')
-        best_col = random.choice(valid_locations)
-        for col in valid_locations:
-            row = get_next_open_row(board, col)
-            b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, PLAYER_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True)
-            if new_score < value:
-                value = new_score
-                best_col = col
-            beta = min(beta, value)
-            if alpha >= beta:
-                break
-        return best_col, value
+    for col in valid_moves:
+        new_board = make_move(board, col, my_symbol if maximizing else opponent_symbol)
+        score, _ = negamax(new_board, depth - 1, -beta, -alpha, not maximizing, my_symbol, opponent_symbol)
+        score = -score
 
-# FUNCTIONS REQUIRED BY THE connect_4_main.py MODULE
+        if score > best_score:
+            best_score = score
+            best_move = col
+        alpha = max(alpha, score)
+        if alpha >= beta:
+            break
+
+    transposition_table.put(board, my_symbol, opponent_symbol, best_score)
+    return best_score, best_move
+
+# -------------------
+# AGENT ENTRY POINTS
+# -------------------
+
 def init_agent(player_symbol, board_num_rows, board_num_cols, board):
-   """ Inits the agent. Should only need to be called once at the start of a game.
-   NOTE NOTE NOTE: Do not expect the values you might save in variables to retain
-   their values each time a function in this module is called. Therefore, you might
-   want to save the variables to a file and re-read them when each function was called.
-   This is not to say you should do that. Rather, just letting you know about the variables
-   you might use in this module.
-   NOTE NOTE NOTE NOTE: All functions called by connect_4_main.py  module will pass in all
-   of the variables that you likely will need. So you can probably skip the 'NOTE NOTE NOTE'
-   above. """
-   num_rows = int(board_num_rows)
-   num_cols = int(board_num_cols)
-   game_board = board
-   my_game_symbol = player_symbol
-   return True
+    return True
 
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
-   """ Decide your move, i.e., which column to drop a disk. """
+    opponent_symbol = 'O' if my_game_symbol == 'X' else 'X'
+    start_time = time.time()
+    time_limit = 10.0  # seconds
+    best_move = random.choice(get_valid_moves(board))
+    depth = 1
+    while True:
+        try:
+            transposition_table.table.clear()
+            score, move = negamax(board, depth, alpha=-math.inf, beta=math.inf,
+                                   maximizing=True, my_symbol=my_game_symbol, opponent_symbol=opponent_symbol)
+            if move is not None:
+                best_move = move
+            if time.time() - start_time > time_limit:
+                break
+            depth += 1
+        except Exception as e:
+            break
 
-   global BOT_PIECE, PLAYER_PIECE
-   BOT_PIECE = my_game_symbol
-   PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
-
-   col, _ = minimax(copy_board(board), 4, -float('inf'), float('inf'), True)
-   return col + 1 if col is not None else random.randint(1, game_cols)
+    return best_move + 1
 
 def connect_4_result(board, winner, looser):
-    """The Connect 4 manager calls this function when the game is over.
-    If there is a winner, the team name of the winner and looser are the
-    values of the respective argument variables. If there is a draw/tie,
-    the values of winner = looser = 'Draw'."""
-
-    print(f">>> I am player {TEAM_NAME} <<<")
-
+    print(">>> I am player TEAM3 <<<")
     if winner == "Draw":
         print(">>> The game resulted in a draw. <<<\n")
     else:
         print("The winner is " + winner)
-        if winner == TEAM_NAME:
+        if winner == "Team3":
             print("YEAH!!  :-)")
         else:
             print("BOO HOO HOO  :~(")
         print("The looser is " + looser)
-        print()
-
-    # Uncomment to debug final state
-    # print("Final board state:")
-    # print_board(board)  # You can use the same print_board helper function
-
     return True
 
-#####
-# MAKE SURE MODULE IS IMPORTED
+# -------------------
+# DO NOT RUN AS SCRIPT
+# -------------------
+
 if __name__ == "__main__":
-   print("Team3_Connect_4_Agent.py  is intended to be imported and not executed.")
+    print("Team3_Connect_4_Agent.py is intended to be imported and not executed.")
 else:
-   print("Team3_Connect_4_Agent.py  has been imported.")
+    print("Team3_Connect_4_Agent.py has been imported.")

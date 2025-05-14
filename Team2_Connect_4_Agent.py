@@ -1,5 +1,5 @@
 #! /usr/bin/Team5_Connect_4_Agent.py
-# python connect_4_main.pyc Team3 Team5
+# python connect_4_main.pyc Team2 Team5
 # IMPORTS
 import random
 import copy
@@ -167,9 +167,12 @@ def is_terminal_node(board):
     return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
 
 
-def minimax(board, depth, alpha, beta, maximizingPlayer):
+def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit):
     """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
     Giovanni Hsieh: 100% edited open source code to work"""
+    if time.time() - start_time > time_limit:
+        raise TimeoutError()
+
     valid_locations = order_valid_locations(get_valid_locations(board), len(board[0]))
     is_terminal = is_terminal_node(board)
 
@@ -191,7 +194,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, BOT_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False)
+            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False, start_time, time_limit)
             if new_score > value:
                 value = new_score
                 best_col = col
@@ -199,7 +202,6 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
             if alpha >= beta:
                 break
         return best_col, value
-
     else:
         value = float('inf')
         best_col = random.choice(valid_locations)
@@ -207,7 +209,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, PLAYER_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True)
+            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True, start_time, time_limit)
             if new_score < value:
                 value = new_score
                 best_col = col
@@ -243,27 +245,25 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    BOT_PIECE = my_game_symbol
    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
-   valid_locations = get_valid_locations(board)
+   time_limit = 15  # seconds; leave buffer for return
+   start_time = time.time()
+   best_col = random.choice(get_valid_locations(board))  # fallback
+   depth = 1
 
-   # Check for winning move before running minimax to save time
-   for col in valid_locations:
-       row = get_next_open_row(board, col)
-       temp_board = copy_board(board)
-       drop_piece(temp_board, row, col, BOT_PIECE)
-       if winning_move(temp_board, BOT_PIECE):
-           return col + 1
+   while True:
+       if time.time() - start_time > time_limit:
+           break
 
-   # Check for opponent's winning move to block before running minimax to save time
-   for col in valid_locations:
-       row = get_next_open_row(board, col)
-       temp_board = copy_board(board)
-       drop_piece(temp_board, row, col, PLAYER_PIECE)
-       if winning_move(temp_board, PLAYER_PIECE):
-           return col + 1
+       try:
+           col, _ = minimax(board, depth, -float('inf'), float('inf'), True, start_time, time_limit)
+           if col is not None:
+               best_col = col
+       except TimeoutError:
+           break
 
-   # If neither above sections happen, run minimax algorithm
-   col, _ = minimax(copy_board(board), 5, -float('inf'), float('inf'), True)
-   return col + 1 if col is not None else random.randint(1, game_cols)
+       depth += 1
+
+   return best_col + 1  # convert to 1-based indexing
 
 def connect_4_result(board, winner, looser):
     """The Connect 4 manager calls this function when the game is over.

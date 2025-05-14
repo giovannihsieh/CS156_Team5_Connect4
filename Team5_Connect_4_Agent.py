@@ -1,5 +1,5 @@
 #! /usr/bin/Team5_Connect_4_Agent.py
-# python connect_4_main.pyc Team3 Team5
+# python connect_4_main.pyc Team2 Team5
 # IMPORTS
 import random
 import copy
@@ -61,27 +61,23 @@ def evaluate_window(window, piece):
     """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
     Giovanni Hsieh: 100% implemented"""
     score = 0
-    # Switch scoring based on turn
-    opp_piece = PLAYER_PIECE \
-    if piece == BOT_PIECE \
-        else BOT_PIECE
+    opp_piece = PLAYER_PIECE if piece == BOT_PIECE else BOT_PIECE
 
-    # Prioritise a winning move
-    if window.count(piece) == 4:
+    if len(window) < WINDOW_LENGTH:
+        return 0  # Ignore incomplete windows
+
+    if window.count(piece) == WINDOW_LENGTH:
         score += 1000
-    # Make connecting 3 second priority
-    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
+    elif window.count(piece) == WINDOW_LENGTH - 1 and window.count(EMPTY) == 1:
         score += 50
-    # Make connecting 2 third priority
-    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
+    elif window.count(piece) == WINDOW_LENGTH - 2 and window.count(EMPTY) == 2:
         score += 10
 
-    # Prioritise blocking an opponent's winning move (but not over bot winning)
-    if window.count(opp_piece) == 4:
+    if window.count(opp_piece) == WINDOW_LENGTH:
         score -= 1000
-    elif window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+    elif window.count(opp_piece) == WINDOW_LENGTH - 1 and window.count(EMPTY) == 1:
         score -= 80
-    elif window.count(opp_piece) == 2 and window.count(EMPTY) == 2:
+    elif window.count(opp_piece) == WINDOW_LENGTH - 2 and window.count(EMPTY) == 2:
         score -= 5
 
     return score
@@ -103,27 +99,25 @@ def score_position(board, piece):
 
     # Horizontal score
     for r in range(row_count):
-        row_array = board[r]
-        for c in range(col_count - 3):
-            window = row_array[c:c + WINDOW_LENGTH]
+        for c in range(col_count - WINDOW_LENGTH + 1):  # safer bounds
+            window = board[r][c:c + WINDOW_LENGTH]
             score += evaluate_window(window, piece)
 
     # Vertical score
     for c in range(col_count):
-        col_array = [board[r][c] for r in range(row_count)]
-        for r in range(row_count - 3):
-            window = col_array[r:r + WINDOW_LENGTH]
+        for r in range(row_count - WINDOW_LENGTH + 1):  # safer bounds
+            window = [board[r + i][c] for i in range(WINDOW_LENGTH)]
             score += evaluate_window(window, piece)
 
     # Positive diagonals
-    for r in range(row_count - 3):
-        for c in range(col_count - 3):
+    for r in range(row_count - WINDOW_LENGTH + 1):
+        for c in range(col_count - WINDOW_LENGTH + 1):
             window = [board[r + i][c + i] for i in range(WINDOW_LENGTH)]
             score += evaluate_window(window, piece)
 
     # Negative diagonals
-    for r in range(3, row_count):
-        for c in range(col_count - 3):
+    for r in range(WINDOW_LENGTH - 1, row_count):
+        for c in range(col_count - WINDOW_LENGTH + 1):
             window = [board[r - i][c + i] for i in range(WINDOW_LENGTH)]
             score += evaluate_window(window, piece)
 
@@ -167,7 +161,7 @@ def is_terminal_node(board):
     return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
 
 
-def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit):
+def negamax(board, depth, alpha, beta, color, start_time, time_limit):
     """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
     Giovanni Hsieh: 100% edited open source code to work"""
     if time.time() - start_time > time_limit:
@@ -179,44 +173,33 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
     if depth == 0 or is_terminal:
         if is_terminal:
             if winning_move(board, BOT_PIECE):
-                return (None, 9999999)
+                return (None, color * 9999999)
             elif winning_move(board, PLAYER_PIECE):
-                return (None, -9999999)
-            else:
+                return (None, color * -9999999)
+            else:  # Draw
                 return (None, 0)
         else:
-            return (None, score_position(board, BOT_PIECE))
+            return (None, color * score_position(board, BOT_PIECE))
 
-    if maximizingPlayer:
-        value = -float('inf')
-        best_col = random.choice(valid_locations)
-        for col in valid_locations:
-            row = get_next_open_row(board, col)
-            b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, BOT_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False, start_time, time_limit)
-            if new_score > value:
-                value = new_score
-                best_col = col
-            alpha = max(alpha, value)
-            if alpha >= beta:
-                break
-        return best_col, value
-    else:
-        value = float('inf')
-        best_col = random.choice(valid_locations)
-        for col in valid_locations:
-            row = get_next_open_row(board, col)
-            b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, PLAYER_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True, start_time, time_limit)
-            if new_score < value:
-                value = new_score
-                best_col = col
-            beta = min(beta, value)
-            if alpha >= beta:
-                break
-        return best_col, value
+    best_score = -float('inf')
+    best_col = random.choice(valid_locations)
+    for col in valid_locations:
+        row = get_next_open_row(board, col)
+        b_copy = copy_board(board)
+        drop_piece(b_copy, row, col, BOT_PIECE if color == 1 else PLAYER_PIECE)
+
+        _, score = negamax(b_copy, depth - 1, -beta, -alpha, -color, start_time, time_limit)
+        score = -score
+
+        if score > best_score:
+            best_score = score
+            best_col = col
+
+        alpha = max(alpha, best_score)
+        if alpha >= beta:
+            break  # Alpha-beta pruning
+
+    return best_col, best_score
 
 # FUNCTIONS REQUIRED BY THE connect_4_main.py MODULE
 def init_agent(player_symbol, board_num_rows, board_num_cols, board):
@@ -229,11 +212,12 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
    NOTE NOTE NOTE NOTE: All functions called by connect_4_main.py  module will pass in all
    of the variables that you likely will need. So you can probably skip the 'NOTE NOTE NOTE'
    above. """
-   num_rows = int(board_num_rows)
-   num_cols = int(board_num_cols)
-   game_board = board
-   my_game_symbol = player_symbol
-   return True
+   global BOT_PIECE, PLAYER_PIECE, WINDOW_LENGTH
+   BOT_PIECE = player_symbol
+   PLAYER_PIECE = 'O' if BOT_PIECE == 'X' else 'X'
+
+   # Adjust window length to smaller of 4 or board dimensions
+   WINDOW_LENGTH = min(4, board_num_rows, board_num_cols)
 
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    """ Decide your move, i.e., which column to drop a disk.
@@ -245,7 +229,7 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
    BOT_PIECE = my_game_symbol
    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
-   time_limit = 5  # seconds; leave buffer for return
+   time_limit = 15  # seconds; leave buffer for return
    start_time = time.time()
    best_col = random.choice(get_valid_locations(board))  # fallback
    depth = 1
@@ -255,7 +239,7 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
            break
 
        try:
-           col, _ = minimax(board, depth, -float('inf'), float('inf'), True, start_time, time_limit)
+           col, _ = negamax(board, depth, -float('inf'), float('inf'), 1, start_time, time_limit)
            if col is not None:
                best_col = col
        except TimeoutError:
