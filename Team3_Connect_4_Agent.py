@@ -1,220 +1,318 @@
-# ! /usr/bin/Team3_Connect_4_Agent.py
+#! /usr/bin/Team5_Connect_4_Agent.py
 # python connect_4_main.pyc Team2 Team5
-
+# IMPORTS
 import random
-import math
 import copy
-import hashlib
 import time
 
-# -------------------
-# TRANSPOSITION TABLE
-# -------------------
+# DEFINITIONS
+# board = [[' ' for _ in range(cols)] for _ in range(rows)]
 
-class TranspositionTable:
-    def __init__(self):
-        self.table = {}
+#Constants
+EMPTY = ' '
+PLAYER_PIECE = 'O'  # opponent
+BOT_PIECE = 'X'     # your symbol
+WINDOW_LENGTH = 4
+TEAM_NAME = "Team3"
 
-    def _hash_board(self, board, my_symbol, opponent_symbol):
-        board_string = ''.join(''.join(row) for row in board)
-        return hashlib.md5((board_string + my_symbol + opponent_symbol).encode()).hexdigest()
-
-    def get(self, board, my_symbol, opponent_symbol):
-        key = self._hash_board(board, my_symbol, opponent_symbol)
-        return self.table.get(key)
-
-    def put(self, board, my_symbol, opponent_symbol, value):
-        key = self._hash_board(board, my_symbol, opponent_symbol)
-        self.table[key] = value
-
-transposition_table = TranspositionTable()
-
-# -------------------
 # HELPER FUNCTIONS
-# -------------------
-
+# Print the Board
 def print_board(board):
+    """ Prints the connect 4 game board."""
     for row in board:
         print('|' + '|'.join(row) + '|')
     print("-" * (len(board[0]) * 2 + 1))
-    print(' ' + ' '.join(str(i + 1) for i in range(len(board[0]))))
+    print(' ' + ' '.join(str(i+1) for i in range(len(board[0]))))
+    return
 
-def get_valid_moves(board):
-    return [c for c in range(len(board[0])) if board[0][c] == ' ']
+def get_valid_locations(board):
+    """ REPRESENTATION: Get all locations in the game board that are not empty (can be filled).
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    return [col for col in range(len(board[0])) if board[0][col] == EMPTY]
 
-def make_move(board, col, symbol):
-    new_board = copy.deepcopy(board)
-    for row in reversed(range(len(new_board))):
-        if new_board[row][col] == ' ':
-            new_board[row][col] = symbol
-            return new_board
-    return None
+def is_valid_location(board, col):
+    """Check if there is a valid location in a specific column.
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    return board[0][col] == EMPTY
 
-def check_winner(board, symbol):
-    rows, cols = len(board), len(board[0])
-    for r in range(rows):
-        for c in range(cols - 3):
-            if all(board[r][c + i] == symbol for i in range(4)):
+def get_next_open_row(board, col):
+    """REPRESENTATION: check which row the game piece will go to when placed in a column.
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    for r in reversed(range(len(board))):
+        if board[r][col] == EMPTY:
+            return r
+
+def drop_piece(board, row, col, piece):
+    """REPRESENTATION: drop a game piece into a row/column. used for minimax search algorithm
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    board[row][col] = piece
+
+def copy_board(board):
+    """REPRESENTATION: copy board state for modification during minimax algorithm
+    Giovanni Hsieh: 100% implemented to be used in minimax function without modifying original board state"""
+    return [row[:] for row in board]
+
+def order_valid_locations(valid_locations, col_count):
+    """REPRESENTATION: sort moves by how close to center they are since center is usually the best move"""
+    center = col_count // 2
+    return sorted(valid_locations, key=lambda x: abs(center - x))
+
+def evaluate_window(window, piece):
+    """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
+    Giovanni Hsieh: 100% implemented"""
+    score = 0
+    # Switch scoring based on turn
+    opp_piece = PLAYER_PIECE
+    if piece == PLAYER_PIECE:
+        opp_piece = BOT_PIECE
+
+    # Prioritize a winning move
+    if window.count(piece) == 4:
+        score += 100
+    # Make connecting 3 second priority
+    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
+        score += 5
+    # Make connecting 2 third priority
+    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
+        score += 2
+    # Prioritize blocking an opponent's winning move (but not over bot winning)
+    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+        score -= 4
+
+    return score
+
+def score_position(board, piece):
+    """ REASONING: give a score of the whole board based on evaluate_window.
+    center column is favored, looks at horizontal/vertical/diagonal possibilities
+    called at leaf nodes of minimax algorithm to estimate board values
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    score = 0
+    ROW_COUNT = len(board)
+    COLUMN_COUNT = len(board[0])
+    WINDOW_LENGTH = 4
+
+    # Score center column
+    center_col = COLUMN_COUNT // 2
+    center_array = [board[r][center_col] for r in range(ROW_COUNT)]
+    center_count = center_array.count(piece)
+    score += center_count * 3
+
+    # Score horizontal positions
+    for r in range(ROW_COUNT):
+        row_array = [board[r][c] for c in range(COLUMN_COUNT)]
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
+            window = row_array[c:c + WINDOW_LENGTH]
+            score += evaluate_window(window, piece)
+
+    # Score vertical positions
+    for c in range(COLUMN_COUNT):
+        col_array = [board[r][c] for r in range(ROW_COUNT)]
+        for r in range(ROW_COUNT - WINDOW_LENGTH + 1):
+            window = col_array[r:r + WINDOW_LENGTH]
+            score += evaluate_window(window, piece)
+
+    # Score positive diagonals (bottom-left to top-right)
+    for r in range(ROW_COUNT - WINDOW_LENGTH + 1):
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
+            window = [board[r + i][c + i] for i in range(WINDOW_LENGTH)]
+            score += evaluate_window(window, piece)
+
+    # Score negative diagonals (top-left to bottom-right)
+    for r in range(WINDOW_LENGTH - 1, ROW_COUNT):
+        for c in range(COLUMN_COUNT - WINDOW_LENGTH + 1):
+            window = [board[r - i][c + i] for i in range(WINDOW_LENGTH)]
+            score += evaluate_window(window, piece)
+
+    return score
+
+def winning_move(board, piece):
+    """REPRESENTATION: check if there is a winning state
+    Giovanni Hsieh: 100% implemented to work with 2d list implementation of board"""
+    row_count = len(board)
+    col_count = len(board[0])
+
+    # Check valid horizontal locations for win
+    for r in range(row_count):
+        for c in range(col_count - 3):
+            if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
                 return True
-    for r in range(rows - 3):
-        for c in range(cols):
-            if all(board[r + i][c] == symbol for i in range(4)):
+
+    # Check valid vertical locations for win
+    for c in range(col_count):
+        for r in range(row_count - 3):
+            if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
                 return True
-    for r in range(3, rows):
-        for c in range(cols - 3):
-            if all(board[r - i][c + i] == symbol for i in range(4)):
+
+    # Check valid positive diagonal locations for win
+    for r in range(row_count - 3):
+        for c in range(col_count - 3):
+            if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
                 return True
-    for r in range(rows - 3):
-        for c in range(cols - 3):
-            if all(board[r + i][c + i] == symbol for i in range(4)):
+
+    # Check valid negative diagonal locations for win
+    for r in range(3, row_count):
+        for c in range(col_count - 3):
+            if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
                 return True
+
     return False
 
-def is_full(board):
-    return all(cell != ' ' for row in board for cell in row)
+
+def is_terminal_node(board):
+    """REPRESENTATION:  check if current state is win/draw/loss terminal state"""
+    return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
 
 
-def evaluate_board(board, my_symbol, opponent_symbol):
-    """Evaluate the board and return a score."""
-    score = 0
+def negamax(board, depth, alpha, beta, color, start_time, time_limit):
+    """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
+    Giovanni Hsieh: 100% edited open source code to work"""
+    if time.time() - start_time > time_limit:
+        raise TimeoutError()
 
-    # Check for winning moves
-    if check_winner(board, my_symbol):
-        return 100000  # Win score for the agent
-    elif check_winner(board, opponent_symbol):
-        return -100000  # Loss score for the agent
-
-    # Positional scoring: Center columns are more valuable
-    for r in range(len(board)):
-        for c in range(len(board[0])):
-            if board[r][c] == my_symbol:
-                score += 2  # Add value for own pieces
-                score += (len(board[0]) // 2 - abs(c - len(board[0]) // 2)) * 2  # Center is better
-            elif board[r][c] == opponent_symbol:
-                score -= 2  # Subtract value for opponent's pieces
-                score -= (len(board[0]) // 2 - abs(c - len(board[0]) // 2)) * 2  # Center is worse
-
-    # Evaluate the number of 2-in-a-row and 3-in-a-row for both the agent and the opponent
-    for r in range(len(board)):
-        for c in range(len(board[0]) - 3):
-            window = [board[r][c + i] for i in range(4)]
-            score += evaluate_window(window, my_symbol, opponent_symbol)
-
-    for r in range(len(board) - 3):
-        for c in range(len(board[0])):
-            window = [board[r + i][c] for i in range(4)]
-            score += evaluate_window(window, my_symbol, opponent_symbol)
-
-    for r in range(len(board) - 3):
-        for c in range(len(board[0]) - 3):
-            window = [board[r + i][c + i] for i in range(4)]
-            score += evaluate_window(window, my_symbol, opponent_symbol)
-
-    for r in range(3, len(board)):
-        for c in range(len(board[0]) - 3):
-            window = [board[r - i][c + i] for i in range(4)]
-            score += evaluate_window(window, my_symbol, opponent_symbol)
-
-    return score
-
-
-def evaluate_window(window, my_symbol, opponent_symbol):
-    """Evaluates a 4-cell window and returns a score based on the contents."""
-    score = 0
-    my_count = window.count(my_symbol)
-    opponent_count = window.count(opponent_symbol)
-
-    if my_count == 4:
-        score += 100  # Winning line
-    elif my_count == 3 and window.count(' ') == 1:
-        score += 10  # Potential to make a 4-in-a-row
-    elif my_count == 2 and window.count(' ') == 2:
-        score += 5  # Potential for future moves
-
-    if opponent_count == 3 and window.count(' ') == 1:
-        score -= 10  # Block opponent from winning
-    elif opponent_count == 2 and window.count(' ') == 2:
-        score -= 5  # Prevent opponent from setting up a winning move
-
-    return score
-
-def negamax(board, depth, alpha, beta, maximizing, my_symbol, opponent_symbol):
-    cached = transposition_table.get(board, my_symbol, opponent_symbol)
-    if cached is not None:
-        return cached, None
-
-    valid_moves = get_valid_moves(board)
-    is_terminal = check_winner(board, my_symbol) or check_winner(board, opponent_symbol) or len(valid_moves) == 0
+    valid_locations = order_valid_locations(get_valid_locations(board), len(board[0]))
+    is_terminal = is_terminal_node(board)
 
     if depth == 0 or is_terminal:
-        score = evaluate_board(board, my_symbol, opponent_symbol)
-        transposition_table.put(board, my_symbol, opponent_symbol, score)
-        return score, None
+        if is_terminal:
+            if winning_move(board, BOT_PIECE):
+                return (None, color * 9999999)
+            elif winning_move(board, PLAYER_PIECE):
+                return (None, color * -9999999)
+            else:  # Draw
+                return (None, 0)
+        else:
+            return (None, color * score_position(board, BOT_PIECE))
 
-    best_score = -math.inf
-    best_move = random.choice(valid_moves)
+    best_score = -float('inf')
+    best_col = random.choice(valid_locations)
+    for col in valid_locations:
+        row = get_next_open_row(board, col)
+        b_copy = copy_board(board)
+        drop_piece(b_copy, row, col, BOT_PIECE if color == 1 else PLAYER_PIECE)
 
-    for col in valid_moves:
-        new_board = make_move(board, col, my_symbol if maximizing else opponent_symbol)
-        score, _ = negamax(new_board, depth - 1, -beta, -alpha, not maximizing, my_symbol, opponent_symbol)
+        _, score = negamax(b_copy, depth - 1, -beta, -alpha, -color, start_time, time_limit)
         score = -score
 
         if score > best_score:
             best_score = score
-            best_move = col
-        alpha = max(alpha, score)
+            best_col = col
+
+        alpha = max(alpha, best_score)
         if alpha >= beta:
-            break
+            break  # Alpha-beta pruning
 
-    transposition_table.put(board, my_symbol, opponent_symbol, best_score)
-    return best_score, best_move
+    return best_col, best_score
 
-# -------------------
-# AGENT ENTRY POINTS
-# -------------------
-
+# FUNCTIONS REQUIRED BY THE connect_4_main.py MODULE
 def init_agent(player_symbol, board_num_rows, board_num_cols, board):
-    return True
+   """ Inits the agent. Should only need to be called once at the start of a game.
+   NOTE NOTE NOTE: Do not expect the values you might save in variables to retain
+   their values each time a function in this module is called. Therefore, you might
+   want to save the variables to a file and re-read them when each function was called.
+   This is not to say you should do that. Rather, just letting you know about the variables
+   you might use in this module.
+   NOTE NOTE NOTE NOTE: All functions called by connect_4_main.py  module will pass in all
+   of the variables that you likely will need. So you can probably skip the 'NOTE NOTE NOTE'
+   above. """
+   global BOT_PIECE, PLAYER_PIECE, WINDOW_LENGTH
+   BOT_PIECE = player_symbol
+   PLAYER_PIECE = 'O' if BOT_PIECE == 'X' else 'X'
+
+   # Adjust window length to smaller of 4 or board dimensions
+   WINDOW_LENGTH = min(4, board_num_rows, board_num_cols)
 
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
-    opponent_symbol = 'O' if my_game_symbol == 'X' else 'X'
-    start_time = time.time()
-    time_limit = 10.0  # seconds
-    best_move = random.choice(get_valid_moves(board))
+    """ Decide your move, i.e., which column to drop a disk.
+    Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
+    : Implemented checking for winning or losing move before running minimax to save time
+    """
+    global BOT_PIECE, PLAYER_PIECE
+    BOT_PIECE = my_game_symbol
+    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
+
+    time_limit = 5  # seconds; leave buffer for return
+    start_time = time.time()  # Start the timer
+    best_col = random.choice(get_valid_locations(board))  # fallback
     depth = 1
+    best_score = -float('inf')
+
+    # Track the last non-losing move
+    prev_best_col = best_col
+    prev_best_score = best_score
+
     while True:
-        try:
-            transposition_table.table.clear()
-            score, move = negamax(board, depth, alpha=-math.inf, beta=math.inf,
-                                   maximizing=True, my_symbol=my_game_symbol, opponent_symbol=opponent_symbol)
-            if move is not None:
-                best_move = move
-            if time.time() - start_time > time_limit:
-                break
-            depth += 1
-        except Exception as e:
+        current_time = time.time()
+        if current_time - start_time > time_limit:
+            print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
             break
 
-    return best_move + 1
+        try:
+            col, score = negamax(board, depth, -float('inf'), float('inf'), 1, start_time, time_limit)
+            if col is not None:
+                best_col = col
+
+                # If a winning move is found, pick it immediately
+                if score == 9999999:
+                    print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
+                    best_col = col
+                    break
+
+                # Stop if we detect that this depth leads to a guaranteed loss
+                if score == -9999999:
+                    print(f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {prev_best_col + 1}.")
+                    best_col = prev_best_col
+                    break
+
+                # Only update best move if it's not a guaranteed loss
+                if score > best_score:
+                    best_score = score
+                    best_col = col
+                    # Update previous best since it's a safe move
+                    prev_best_col = best_col
+                    prev_best_score = best_score
+
+        except TimeoutError:
+            print(f"[DEBUG] TimeoutError caught at depth {depth}")
+            break
+
+        depth += 1
+
+    end_time = time.time()  # End the timer
+    elapsed_time = end_time - start_time  # Calculate the time taken
+
+    print(f"[DEBUG] Final move selected: column {best_col + 1}")
+    print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
+
+    return best_col + 1  # convert to 1-based indexing
 
 def connect_4_result(board, winner, looser):
-    print(">>> I am player TEAM3 <<<")
+    """The Connect 4 manager calls this function when the game is over.
+    If there is a winner, the team name of the winner and looser are the
+    values of the respective argument variables. If there is a draw/tie,
+    the values of winner = looser = 'Draw'."""
+
+    print(f">>> I am player {TEAM_NAME} <<<")
+
     if winner == "Draw":
         print(">>> The game resulted in a draw. <<<\n")
     else:
         print("The winner is " + winner)
-        if winner == "Team3":
+        if winner == TEAM_NAME:
             print("YEAH!!  :-)")
         else:
             print("BOO HOO HOO  :~(")
         print("The looser is " + looser)
+        print()
+
+    # Uncomment to debug final state
+    # print("Final board state:")
+    # print_board(board)  # You can use the same print_board helper function
+
     return True
 
-# -------------------
-# DO NOT RUN AS SCRIPT
-# -------------------
-
+#####
+# MAKE SURE MODULE IS IMPORTED
 if __name__ == "__main__":
-    print("Team3_Connect_4_Agent.py is intended to be imported and not executed.")
+   print("Team3_Connect_4_Agent.py  is intended to be imported and not executed.")
 else:
-    print("Team3_Connect_4_Agent.py has been imported.")
+   print("Team3_Connect_4_Agent.py  has been imported.")
