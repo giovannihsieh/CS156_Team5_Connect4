@@ -262,7 +262,7 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
            return col + 1
 
    # If neither above sections happen, run minimax algorithm
-   col, _ = minimax(copy_board(board), 4, -float('inf'), float('inf'), True)
+   col, _ = minimax(copy_board(board), 5, -float('inf'), float('inf'), True)
    return col + 1 if col is not None else random.randint(1, game_cols)
 
 def connect_4_result(board, winner, looser):
