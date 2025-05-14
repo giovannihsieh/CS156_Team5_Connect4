@@ -234,6 +234,7 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
     start_time = time.time()  # Start the timer
     best_col = random.choice(get_valid_locations(board))  # fallback
     depth = 1
+    best_score = -float('inf')
 
     print(f"[DEBUG] Starting iterative deepening for player '{BOT_PIECE}'")
 
@@ -249,10 +250,23 @@ def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
                 best_col = col
                 print(f"[DEBUG] Depth {depth}: Best column so far is {col + 1} (score = {score})")
 
-                # Early exit if winning move is found
+                # If a winning move is found, pick it immediately
                 if score == 9999999:
-                    print(f"[DEBUG] Winning move found at column {col + 1} with score {score}. Ending search early.")
+                    print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
+                    best_col = col
                     break
+
+                # Stop if we detect that this depth leads to a guaranteed loss
+                if score == -9999999:
+                    print(
+                        f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {best_col + 1}.")
+                    break
+
+                if score > best_score:
+                    best_score = score
+                    best_col = col
+                    print(f"[DEBUG] Updated best column to {col + 1} (score = {score})")
+
         except TimeoutError:
             print(f"[DEBUG] TimeoutError caught at depth {depth}")
             break
