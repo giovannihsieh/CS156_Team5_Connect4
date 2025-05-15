@@ -12,7 +12,7 @@ EMPTY = ' '
 PLAYER_PIECE = 'O'  # opponent
 BOT_PIECE = 'X'     # your symbol
 WINDOW_LENGTH = 4
-TEAM_NAME = "Team3"
+TEAM_NAME = "Team2"
 
 # HELPER FUNCTIONS
 # Print the Board
@@ -161,12 +161,9 @@ def is_terminal_node(board):
     return winning_move(board, PLAYER_PIECE) or winning_move(board, BOT_PIECE) or len(get_valid_locations(board)) == 0
 
 
-def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit):
+def minimax(board, depth, alpha, beta, maximizingPlayer):
     """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4
     Giovanni Hsieh: 100% edited open source code to work"""
-    if time.time() - start_time > time_limit:
-        raise TimeoutError()
-
     valid_locations = order_valid_locations(get_valid_locations(board), len(board[0]))
     is_terminal = is_terminal_node(board)
 
@@ -188,7 +185,8 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, BOT_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False, start_time, time_limit)
+            _, new_score = minimax(b_copy, depth - 1, alpha, beta, False)
+            #print(f"[DEBUG][Depth {depth}] Max Player: Column {col}, Score {new_score}")
             if new_score > score:
                 score = new_score
                 best_col = col
@@ -203,7 +201,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
             drop_piece(b_copy, row, col, PLAYER_PIECE)
-            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True, start_time, time_limit)
+            _, new_score = minimax(b_copy, depth - 1, alpha, beta, True)
             if new_score < score:
                 score = new_score
                 best_col = col
@@ -230,63 +228,41 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
    return True
 
 def what_is_your_move(board, game_rows, game_cols, my_game_symbol):
-   """ Decide your move, i.e., which column to drop a disk.
-   Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
-   : Implemented checking for winning or losing move before running minimax to save time
-   """
+    """ Decide your move, i.e., which column to drop a disk.
+    Giovanni Hsieh: 100% Implemented the agent to determine move based on minimax algorithm.
+    """
 
-   global BOT_PIECE, PLAYER_PIECE
-   BOT_PIECE = my_game_symbol
-   PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
+    global BOT_PIECE, PLAYER_PIECE
+    BOT_PIECE = my_game_symbol
+    PLAYER_PIECE = 'O' if my_game_symbol == 'X' else 'X'
 
-   time_limit = 1  # seconds; leave buffer for return
-   start_time = time.time()  # Start the timer
-   best_col = random.choice(get_valid_locations(board))  # fallback
-   depth = 1
-   best_score = -float('inf')
+    best_col = random.choice(get_valid_locations(board))  # fallback
+    best_score = -float('inf')
+    depth = 9  # Fixed search depth — adjust as needed
 
-   while True:
-       current_time = time.time()
-       if current_time - start_time > time_limit:
-           print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
-           break
+    try:
+        col, score = minimax(board, depth, -float('inf'), float('inf'), True)
 
-       try:
-           col, score = minimax(board, depth, -float('inf'), float('inf'), True, start_time, time_limit)
-           if col is not None:
-               best_col = col
+        if col is not None:
+            best_col = col
+            print(f"[DEBUG] Depth {depth}: Best Column: {best_col} Score = {score}")
 
-               # If a winning move is found, pick it immediately
-               if score == 9999999:
-                   print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
-                   best_col = col
-                   break
+            # If a winning move is found, pick it immediately
+            if score == 9999999:
+                #print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
+                best_col = col
 
-               # Stop if we detect that this depth leads to a guaranteed loss
-               if score == -9999999:
-                   print(
-                       f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {best_col + 1}.")
-                   break
+            # If we detect a guaranteed loss, we still use the best found move
+            elif score == -9999999:
+                print(f"[DEBUG] Depth {depth}: All paths lead to loss. Using best column {best_col + 1}.")
 
-               if score > best_score:
-                   best_score = score
-                   best_col = col
+            else:
+                best_score = score
 
-       except TimeoutError:
-           break
+    except TimeoutError:
+        print("[DEBUG] Timeout occurred (unexpected, since fixed-depth does not check time).")
 
-       depth += 1
-
-   end_time = time.time()  # End the timer
-   elapsed_time = end_time - start_time  # Calculate the time taken
-   """
-   print(f"Turn: {BOT_PIECE}")
-   print(f"[DEBUG] Final move selected: column {best_col + 1}")
-   print(f"[DEBUG] Depth: {depth}")
-   print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
-   """
-
-   return best_col + 1  # convert to 1-based indexing
+    return best_col + 1  # convert to 1-based indexing
 
 
 def connect_4_result(board, winner, looser):

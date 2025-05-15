@@ -10,8 +10,8 @@ import time
 #Constants
 num_cols = None
 num_rows = None
-my_game_symbol = 'O'
-opponent_game_symbol = 'X'
+my_game_symbol = None
+opponent_game_symbol = None
 
 # HELPER FUNCTIONS
 # Print the Board
@@ -23,7 +23,7 @@ def print_board(board):
     print(' ' + ' '.join(str(i+1) for i in range(len(board[0]))))
     return
 
-# REPRESENTATION
+################################################# REPRESENTATION ######################################################
 
 def get_valid_locations(board):
     """REPRESENTATION: Get all locations in the game board that are not empty (can be filled).
@@ -90,9 +90,9 @@ def winning_move(board, piece):
 def is_terminal_node(board):
     """REPRESENTATION:  check if current state is win/draw/loss terminal state
     Giovanni Hsieh: 100% implemented checking if there is a winning move on board"""
-    return winning_move(board, my_game_symbol) or winning_move(board, opponent_game_symbol) or len(get_valid_locations(board)) == 0
+    return winning_move(board, opponent_game_symbol) or winning_move(board, my_game_symbol) or len(get_valid_locations(board)) == 0
 
-# REASONING
+################################################# REASONING ######################################################
 
 def evaluate_window(window, piece):
     """ REASONING: heuristic evaluation. gives a score to 4 windows for current player.
@@ -100,22 +100,22 @@ def evaluate_window(window, piece):
     Giovanni Hsieh: 50% implemented assigning symbols to pieces"""
     score = 0
     # Switch scoring based on turn
-    opp_piece = my_game_symbol
-    if piece == my_game_symbol:
-        opp_piece = opponent_game_symbol
+    opp_piece = opponent_game_symbol
+    if piece == opponent_game_symbol:
+        opp_piece = my_game_symbol
 
     # Prioritize a winning move
     if window.count(piece) == 4:
         score += 100
-    # Make connecting 3 second priority
+    # Make connecting 3 pieces second priority
     elif window.count(piece) == 3 and window.count(' ') == 1:
         score += 5
-    # Make connecting 2 third priority
+    # Make connecting 2 pieces third priority
     elif window.count(piece) == 2 and window.count(' ') == 2:
         score += 2
-    # Prioritize blocking an opponent's winning move (but not over bot winning)
+    # Prioritize blocking an opponent's winning move (but not over winning)
     if window.count(opp_piece) == 3 and window.count(' ') == 1:
-        score -= 4
+        score -= 10
 
     return score
 
@@ -164,7 +164,7 @@ def score_position(board, piece):
 
     return score
 
-# SEARCH
+################################################# SEARCH ######################################################
 
 def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit):
     """ SEARCH: Minimax search algorithm with alpha beta pruning for playing connect 4. Has iterative deepening
@@ -180,14 +180,14 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
 
     if depth == 0 or is_terminal:
         if is_terminal:
-            if winning_move(board, opponent_game_symbol):
+            if winning_move(board, my_game_symbol):
                 return (None, 9999999)
-            elif winning_move(board, my_game_symbol):
+            elif winning_move(board, opponent_game_symbol):
                 return (None, -9999999)
             else:
                 return (None, 0)
         else:
-            return (None, score_position(board, opponent_game_symbol))
+            return (None, score_position(board, my_game_symbol))
 
     if maximizingPlayer:
         score = -float('inf')
@@ -195,7 +195,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
         for col in valid_locations:
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, opponent_game_symbol)
+            drop_piece(b_copy, row, col, my_game_symbol)
             _, new_score = minimax(b_copy, depth - 1, alpha, beta, False, start_time, time_limit)
             if new_score > score:
                 score = new_score
@@ -210,7 +210,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, start_time, time_limit)
         for col in valid_locations:
             row = get_next_open_row(board, col)
             b_copy = copy_board(board)
-            drop_piece(b_copy, row, col, my_game_symbol)
+            drop_piece(b_copy, row, col, opponent_game_symbol)
             _, new_score = minimax(b_copy, depth - 1, alpha, beta, True, start_time, time_limit)
             if new_score < score:
                 score = new_score
@@ -231,6 +231,7 @@ def init_agent(player_symbol, board_num_rows, board_num_cols, board):
    NOTE NOTE NOTE NOTE: All functions called by connect_4_main.py  module will pass in all
    of the variables that you likely will need. So you can probably skip the 'NOTE NOTE NOTE'
    above. """
+   global my_game_symbol, opponent_game_symbol, num_rows, num_cols
    num_rows = int(board_num_rows)
    num_cols = int(board_num_cols)
    game_board = board
@@ -246,19 +247,18 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
    has a debugging portion.
    """
    global my_game_symbol, opponent_game_symbol
-   opponent_game_symbol = symbol
-   my_game_symbol = 'O' if symbol == 'X' else 'X'
+   my_game_symbol = symbol
+   opponent_game_symbol = 'O' if symbol == 'X' else 'X'
 
-   time_limit = 15  # seconds; leave buffer for return
-   start_time = time.time()  # Start the timer
-   best_col = random.choice(get_valid_locations(board))  # fallback
+   time_limit = 14
+   start_time = time.time()
+   best_col = random.choice(get_valid_locations(board))  # just in case
    depth = 4
    best_score = -float('inf')
 
    while True:
        current_time = time.time()
        if current_time - start_time > time_limit:
-           #print(f"[DEBUG] Time limit reached. Ending search at depth {depth - 1}")
            break
 
        try:
@@ -266,15 +266,13 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
            if col is not None:
                best_col = col
 
-               # If a winning move is found, pick it immediately
+               # If a winning move is found, pick it and stop searching
                if score == 9999999:
-                   #print(f"[DEBUG] Found a guaranteed win at column {col + 1} (depth {depth})")
                    best_col = col
                    break
 
-               # Stop if we detect that this depth leads to a guaranteed loss
+               # Stop if detect that this depth leads to a guaranteed loss
                if score == -9999999:
-                   #print(f"[DEBUG] Depth {depth}: All paths lead to guaranteed loss. Using previous best column {best_col + 1}.")
                    break
 
                if score > best_score:
@@ -286,17 +284,8 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
 
        depth += 1
 
-   end_time = time.time()  # End the timer
-   elapsed_time = end_time - start_time  # Calculate the time taken
-
-   """
-   print(f"Turn: {opponent_game_symbol}")
-   print(f"[DEBUG] Final move selected: column {best_col + 1}")
-   print(f"[DEBUG] Depth: {depth}")
-   print(f"[DEBUG] Time taken to make the move: {elapsed_time:.4f} seconds")
-   """
-
-   return best_col + 1  # convert to 1-based indexing
+   end_time = time.time()
+   return best_col + 1  # convert to column indexes
 
 
 def connect_4_result(board, winner, looser):
