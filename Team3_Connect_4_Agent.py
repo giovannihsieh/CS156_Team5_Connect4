@@ -249,7 +249,7 @@ def what_is_your_move(board, game_rows, game_cols, symbol):
    my_game_symbol = symbol
    opponent_game_symbol = 'O' if symbol == 'X' else 'X'
 
-   time_limit = 14  # seconds; leave buffer for return
+   time_limit = 11  # seconds; leave buffer for return
    start_time = time.time()  # Start the timer
    best_col = random.choice(get_valid_locations(board))  # fallback
    depth = 4
